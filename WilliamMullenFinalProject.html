@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOO Average Closing Prices vs FED Interest Rates</title>
+    <!-- Include Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/Chart.min.js"></script>
+    <!-- Include xlsx library for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.0/xlsx.full.min.js"></script>
+    <style>
+        #button-container {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1; /* making sure buttons appear both charts */
+    }
+
+    #button-container input {
+        margin-right: 20px; 
+    }
+    
+    #voo-chart {
+        margin-top: 60px;
+        margin-bottom: 40px;
+    }
+
+    #voo-bar-chart {
+        margin-bottom: 40px; 
+    }
+    </style>
+</head>
+<body>
+    <!-- Create canvas element for the line chart -->
+    <canvas id="voo-chart"></canvas>
+    <!-- Create canvas element for the bar chart -->
+    <canvas id="voo-bar-chart"></canvas>
+    <div id="button-container">
+        <label for="toggle-interest-rate">Toggle Interest Rates:</label>
+        <input type="checkbox" id="toggle-interest-rate" checked>
+        <label for="toggle-closing-price">Toggle Closing Price:</label>
+        <input type="checkbox" id="toggle-closing-price" checked>
+        <!-- Add Export Data to Excel button -->
+        <button id="export-data-button">Export Data to Excel</button>
+    </div>
+
+    <script>
+        // Function to fetch data from Alpha Vantage API and create the line chart
+        function fetchData() {
+            // Hardcoded historical interest rates these come directly from the Federal Reserve site at: https://fred.stlouisfed.org/series/FEDFUNDS
+            const historicalRates = {
+                "2018-01-01": 1.41,
+                "2018-02-01": 1.42,
+                "2018-03-01": 1.51,
+                "2018-04-01": 1.69,
+                "2018-05-01": 1.70,
+                "2018-06-01": 1.82,
+                "2018-07-01": 1.91,
+                "2018-08-01": 1.91,
+                "2018-09-01": 1.95,
+                "2018-10-01": 2.19,
+                "2018-11-01": 2.20,
+                "2018-12-01": 2.27,
+                "2019-01-01": 2.40,
+                "2019-02-01": 2.40,
+                "2019-03-01": 2.41,
+                "2019-04-01": 2.42,
+                "2019-05-01": 2.39,
+                "2019-06-01": 2.38,
+                "2019-07-01": 2.40,
+                "2019-08-01": 2.13,
+                "2019-09-01": 2.04,
+                "2019-10-01": 1.83,
+                "2019-11-01": 1.55,
+                "2019-12-01": 1.55,
+                "2020-01-01": 1.55,
+                "2020-02-01": 1.58,
+                "2020-03-01": 0.65,
+                "2020-04-01": 0.05,
+                "2020-05-01": 0.05,
+                "2020-06-01": 0.08,
+                "2020-07-01": 0.09,
+                "2020-08-01": 0.10,
+                "2020-09-01": 0.09,
+                "2020-10-01": 0.09,
+                "2020-11-01": 0.09,
+                "2020-12-01": 0.09,
+                "2021-01-01": 0.09,
+                "2021-02-01": 0.08,
+                "2021-03-01": 0.07,
+                "2021-04-01": 0.07,
+                "2021-05-01": 0.06,
+                "2021-06-01": 0.08,
+                "2021-07-01": 0.10,
+                "2021-08-01": 0.09,
+                "2021-09-01": 0.08,
+                "2021-10-01": 0.08,
+                "2021-11-01": 0.08,
+                "2021-12-01": 0.08,
+                "2022-01-01": 0.08,
+                "2022-02-01": 0.08,
+                "2022-03-01": 0.20,
+                "2022-04-01": 0.33,
+                "2022-05-01": 0.77,
+                "2022-06-01": 1.21,
+                "2022-07-01": 1.68,
+                "2022-08-01": 2.33,
+                "2022-09-01": 2.56,
+                "2022-10-01": 3.08,
+                "2022-11-01": 3.78,
+                "2022-12-01": 4.10,
+                "2023-01-01": 4.33,
+                "2023-02-01": 4.57,
+                "2023-03-01": 4.65,
+                "2023-04-01": 4.83,
+                "2023-05-01": 5.06,
+                "2023-06-01": 5.08,
+                "2023-07-01": 5.12,
+                "2023-08-01": 5.33,
+                "2023-09-01": 5.33,
+                "2023-10-01": 5.33,
+                "2023-11-01": 5.33,
+                "2023-12-01": 5.33
+            };
+
+            
+            // Fetch data from Alpha Vantage API
+            const apiKey = 'Y2YYURPY0ACESDQX';
+            const apiUrl = 'https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY&symbol=VOO&apikey=' + apiKey;
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Data from Alpha Vantage API:');
+                    console.log(data);
+
+                    // Process data to create the line chart
+                    createCharts(data, historicalRates);
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        // Function to create the line chart
+        function createCharts(data, historicalRates) {
+            const timeSeries = data['Monthly Time Series'];
+            if (!timeSeries) {
+                console.error('No data found in the response');
+                return;
+            }
+
+            // Filter data for years 2018 to 2023
+            const filteredData = {};
+            for (const date in timeSeries) {
+                const year = date.split('-')[0];
+                if (year >= '2018' && year <= '2023') {
+                    filteredData[date] = timeSeries[date];
+                }
+            }
+
+            // Extract dates and closing prices from the filtered data
+            const months = Object.keys(filteredData).sort();
+            const closingPrices = months.map(month => parseFloat(filteredData[month]['4. close']));
+
+            // Calculate average closing price for each month
+            const averages = [];
+            const averageByMonth = {};
+            for (const month of months) {
+                const [year, monthNumber] = month.split('-');
+                const monthLabel = `${year}-${monthNumber}`;
+                if (!averageByMonth[monthLabel]) {
+                    averageByMonth[monthLabel] = { sum: 0, count: 0 };
+                }
+                averageByMonth[monthLabel].sum += parseFloat(filteredData[month]['4. close']);
+                averageByMonth[monthLabel].count++;
+            }
+
+            // Calculate the average closing price for each month
+            for (const monthLabel in averageByMonth) {
+                const average = averageByMonth[monthLabel].sum / averageByMonth[monthLabel].count;
+                averages.push(average.toFixed(2));
+            }
+
+            // Generate labels for the x-axis (months)
+            const monthsLabels = Object.keys(averageByMonth);
+
+            // Calculate interest per year
+            const interestPerYear = {};
+            for (const year in historicalRates) {
+                const yearValue = parseInt(year.split('-')[0]);
+                if (yearValue >= 2018 && yearValue <= 2023) {
+                    if (!interestPerYear[yearValue]) {
+                        interestPerYear[yearValue] = historicalRates[year];
+                    }
+                }
+            }
+
+            // Calculate price per year
+            const pricePerYear = {};
+            for (const month in filteredData) {
+                const year = month.split('-')[0];
+                if (!pricePerYear[year]) {
+                    pricePerYear[year] = parseFloat(filteredData[month]['4. close']);
+                }
+            }
+
+            // Create the line chart
+            const ctx = document.getElementById('voo-chart').getContext('2d');
+            const interestRateCheckbox = document.getElementById('toggle-interest-rate');
+            const closingPriceCheckbox = document.getElementById('toggle-closing-price');
+            const lineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: monthsLabels,
+                    datasets: [{
+                        label: 'Average Monthly Closing Price (VOO)',
+                        data: closingPriceCheckbox.checked ? averages : [],
+                        borderColor: 'blue',
+                        borderWidth: 1,
+                        fill: false,
+                        yAxisID: 'closingPrice'
+                    }, {
+                        label: 'Historical Interest Rates (%)',
+                        data: interestRateCheckbox.checked ? Object.values(historicalRates) : [],
+                        borderColor: 'red',
+                        borderWidth: 1,
+                        fill: false,
+                        yAxisID: 'interestRate'
+                    }]
+                },
+                options: {
+                    title: {
+                        display: true,
+                        text: 'VOO Average Monthly Closing Prices vs FED Interest Rates (2018-2023)'
+                    },
+                    scales: {
+                        yAxes: [{
+                            id: 'closingPrice',
+                            position: 'left',
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Average Closing Price (USD)'
+                            }
+                        }, {
+                            id: 'interestRate',
+                            position: 'right',
+                            ticks: {
+                                beginAtZero: true
+                            },
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Interest Rate (%)'
+                            }
+                        }],
+                        xAxes: [{
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Month'
+                            }
+                        }]
+                    }
+                }
+            });
+
+            // Create the bar chart
+            const barCtx = document.getElementById('voo-bar-chart').getContext('2d');
+            const barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['2018', '2019', '2020', '2021', '2022', '2023'],
+                    datasets: [{
+                        label: 'Historical Interest Rates (%)',
+                        data: [interestPerYear[2018], interestPerYear[2019], interestPerYear[2020], interestPerYear[2021], interestPerYear[2022], interestPerYear[2023]],
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'interestRate'
+                    }, {
+                        label: 'Average Yearly Closing Price (VOO)',
+                        data: [pricePerYear[2018], pricePerYear[2019], pricePerYear[2020], pricePerYear[2021], pricePerYear[2022], pricePerYear[2023]],
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'closingPrice'
+                    }]
+                },
+                options: {
+                    title: {
+                        display: true,
+                        text: 'VOO Average Yearly Closing Prices vs FED Interest Rates (2018-2023)'
+                    },
+                    scales: {
+                        yAxes: [{
+                            id: 'closingPrice',
+                            ticks: {
+                                beginAtZero: true
+                            },
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Average Closing Price (USD)'
+                            }
+                        }, {
+                            id: 'interestRate',
+                            position: 'right',
+                            ticks: {
+                                beginAtZero: true,
+                                min: 0,
+                                callback: function(value) {
+                                    return value.toFixed(2) + "%";
+                                }
+                            },
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Interest Rate (%)'
+                            }
+                        }],
+                        xAxes: [{
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Year'
+                            }
+                        }]
+                    }
+                }
+            });
+
+            // Event listeners for toggling interest rates and closing prices- line chart
+            interestRateCheckbox.addEventListener('change', function() {
+                lineChart.data.datasets[1].data = this.checked ? Object.values(historicalRates) : [];
+                lineChart.update();
+            });
+
+            closingPriceCheckbox.addEventListener('change', function() {
+                lineChart.data.datasets[0].data = this.checked ? averages : [];
+                lineChart.update();
+            });
+
+            // Event listeners for toggling interest rates and closing prices- box chart 
+            interestRateCheckbox.addEventListener('change', function() {
+                lineChart.data.datasets[1].data = this.checked ? Object.values(historicalRates) : [];
+                barChart.data.datasets[0].data = this.checked ? [interestPerYear[2018], interestPerYear[2019], interestPerYear[2020], interestPerYear[2021], interestPerYear[2022], interestPerYear[2023]] : [];
+                lineChart.update();
+                barChart.update();
+            });
+
+            closingPriceCheckbox.addEventListener('change', function() {
+                lineChart.data.datasets[0].data = this.checked ? averages : [];
+                barChart.data.datasets[1].data = this.checked ? [pricePerYear[2018], pricePerYear[2019], pricePerYear[2020], pricePerYear[2021], pricePerYear[2022], pricePerYear[2023]] : [];
+                lineChart.update();
+                barChart.update();
+            });
+
+            // Export data to Excel button click event
+            document.getElementById('export-data-button').addEventListener('click', function() {
+                exportDataToExcel(monthsLabels, Object.values(historicalRates), averages);
+            });
+        }
+
+        // Function to export data to Excel
+        function exportDataToExcel(monthsLabels, interestRates, closingPrices) {
+            const data = [
+                ['Month-Year', 'Interest Rate', 'Average Closing Price']
+            ];
+
+            for (let i = 0; i < monthsLabels.length; i++) {
+                data.push([monthsLabels[i], interestRates[i], closingPrices[i]]);
+            }
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Data');
+            XLSX.writeFile(wb, 'VOO_Data.xlsx');
+        }
+
+        // Call fetchData function when the page loads
+        window.onload = fetchData;
+    </script>
+</body>
+</html>
